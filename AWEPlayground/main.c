@@ -81,18 +81,27 @@ LoggedSetLockPagesPrivilege(HANDLE hProcess,
 }
 
 
+void PrintPFNs(ULONG_PTR* ulpNums, size_t szNumLen)
+{
+	if (!*ulpNums || szNumLen == 0)
+		return;
+	for (size_t i = 0; i < szNumLen; ++i)
+	{
+
+	}
+}
 int main(int argc, char** argv)
 {
-	LPVOID lpvMemoryWindowOne = nullptr;
-	LPVOID lpvMemoryWindowTwo = nullptr;
+	LPVOID lpvMemoryWindowOne = NULL;
+	LPVOID lpvMEmoryWindowTwo = NULL;
 	SYSTEM_INFO sysInfo = { 0 };
 
 	ULONG_PTR ulNumPages, ulNumOriginalPages = 0;
-	ULONG_PTR * ulPfnArray = nullptr;
+	ULONG_PTR * ulPfnArray = NULL;
 	ULONG ulPfnArraySize = 0;
 	ULONG ulRequestedMemory = 1024 * 50;  // 50 MB
 
-										  // Ensure correct privileges are set
+	// Ensure correct privileges are set
 	if (!LoggedSetLockPagesPrivilege(GetCurrentProcess(), TRUE))
 	{
 		_tprintf(_T("Failed to set proper privs\n"));
@@ -131,38 +140,15 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	lpvMemoryWindowTwo = VirtualAlloc(NULL, ulRequestedMemory, 
-		MEM_RESERVE | MEM_PHYSICAL | MEM_TOP_DOWN, PAGE_READWRITE);
-	if (lpvMemoryWindowTwo == NULL)
-	{
-		_tprintf(_T("Failed to allocate second window\n"));
-		getchar();
-		goto done;
-	}
-
 	// Map the physical pages for this window region
 	if (!MapUserPhysicalPages(lpvMemoryWindowOne, ulNumPages, ulPfnArray))
 	{
 		_tprintf(_T("Failed to map physical pages: Error = %X\n"), GetLastError());
 		getchar();
-		goto done;
+		return 0;
 	}
 
-	// This should fail according to docs
-	if (!MapUserPhysicalPages(lpvMemoryWindowTwo, ulNumPages, ulPfnArray))
-	{
-		_tprintf(_T("Could not map second window!: Error: %X\n"), GetLastError());
-		getchar();
-		goto done;
-	}
-
-
-done:
-	if (lpvMemoryWindowTwo)
-		VirtualFree(lpvMemoryWindowTwo, 0, MEM_RELEASE);
-	if (lpvMemoryWindowOne)
-		VirtualFree(lpvMemoryWindowOne, 0, MEM_RELEASE);
-
+	_tprintf(_T("Mapped physical pages\n"));
 	getchar();
 	return 0;
 }
