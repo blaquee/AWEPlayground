@@ -4,8 +4,25 @@
 #include <string.h>
 #include <stdio.h>
 
-BOOL
-LoggedSetLockPagesPrivilege(HANDLE hProcess,
+void PrintError(const char *szMsg, DWORD ddMsgId)
+{
+	char *szError;
+
+	FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		ddMsgId,
+		0,
+		(LPSTR)&szError,
+		0,
+		NULL
+	);
+	_tprintf(_T("[E] %hs: %hs"), szMsg, szError);
+	LocalFree(szError);
+	return;
+}
+
+BOOL LoggedSetLockPagesPrivilege(HANDLE hProcess,
 	BOOL bEnable)
 {
 	struct {
@@ -85,11 +102,13 @@ void PrintPFNs(ULONG_PTR* ulpNums, size_t szNumLen)
 {
 	if (!*ulpNums || szNumLen == 0)
 		return;
+	_tprintf(_T("Printing Page Frame Numbers:\n"));
 	for (size_t i = 0; i < szNumLen; ++i)
 	{
-
+		_tprintf(_T("%X\n"), ulpNums[i]);
 	}
 }
+
 int main(int argc, char** argv)
 {
 	LPVOID lpvMemoryWindowOne = NULL;
@@ -129,6 +148,7 @@ int main(int argc, char** argv)
 	}
 
 	_tprintf(_T("Allocated Pages: %d\n"), ulNumPages);
+	PrintPFNs(ulPfnArray, ulNumPages);
 
 	// Create the window
 	lpvMemoryWindowOne = VirtualAlloc(NULL, ulRequestedMemory,

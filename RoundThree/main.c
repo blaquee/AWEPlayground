@@ -98,12 +98,12 @@ BOOL LoggedSetLockPagesPrivilege(HANDLE hProcess,
 	return TRUE;
 }
 
-void PrintPFNs(ULONG_PTR* ulpNums, size_t szNumLen)
+void PrintPFNs(ULONG_PTR* ulpNums, ULONG_PTR szNumLen)
 {
 	if (!*ulpNums || szNumLen == 0)
 		return;
 	_tprintf(_T("Printing Page Frame Numbers:\n"));
-	for (size_t i = 0; i < szNumLen; ++i)
+	for (ULONG_PTR i = 0; i < szNumLen; i++)
 	{
 		_tprintf(_T("%X\n"), ulpNums[i]);
 	}
@@ -112,21 +112,39 @@ void PrintPFNs(ULONG_PTR* ulpNums, size_t szNumLen)
 BOOL WriteData(PVOID pMemory, size_t szMemLen)
 {
 	BOOL bRet = TRUE;
-	const char data = 0x41;
+	char *data = malloc(1024);
+	memset(data, 0x41, 1024);
 
 	if (!pMemory || szMemLen == 0)
 		return FALSE;
 
-	FillMemory(pMemory, szMemLen, data);
+	VirtualProtect(pMemory, szMemLen, PAGE_READWRITE, NULL);
+
+	__try
+	{
+		WriteProcessMemory(GetCurrentProcess(), pMemory, (LPCVOID)data, 1024, NULL);
+	}
+	__except(EXCEPTION_EXECUTE_HANDLER)
+	{
+		_tprintf(_T("Failed to write to memory!\n"));
+		return FALSE;
+	}
+	
 	return bRet;
 }
 
-void PrintData(PVOID pMemory, size_t szMemLen)
+void PrintData(PVOID pMemory, ULONG_PTR szMemLen)
 {
 	if (!pMemory || szMemLen == 0)
 		return;
 	//print the buffer
-	printf("Data: %.*s", 10, (char*)pMemory);
+	for (unsigned int i = 0; i < 64; i++)
+	{
+		if ((i % 16) == 0 && (i != 0))
+			_tprintf(_T("\n"));
+		_tprintf(_T("%02x"), ((char*)pMemory)[i]);
+	}
+	_tprintf(_T("\n"));
 }
 
 int main(int argc, char** argv)
@@ -168,11 +186,13 @@ int main(int argc, char** argv)
 	}
 
 	_tprintf(_T("Allocated Pages: %d\n"), ulNumPages);
+	_tprintf(_T("Memory Size Requested: %X\n"), ulRequestedMemory);
 	PrintPFNs(ulPfnArray, ulNumPages);
+	_tprintf(_T("Creating Window 1\n"));
 
 	// Create the window
 	lpvMemoryWindowOne = VirtualAlloc(NULL, ulRequestedMemory,
-		MEM_RESERVE | MEM_PHYSICAL | MEM_TOP_DOWN, PAGE_READWRITE);
+		MEM_RESERVE | MEM_PHYSICAL, PAGE_READWRITE);
 	if (lpvMemoryWindowOne == NULL)
 	{
 		_tprintf(_T("Failed to allocate memory!\n"));
@@ -182,7 +202,7 @@ int main(int argc, char** argv)
 
 	// Second Window
 	lpvMemoryWindowTwo = VirtualAlloc(NULL, ulRequestedMemory,
-		MEM_RESERVE | MEM_PHYSICAL | MEM_TOP_DOWN, PAGE_READWRITE);
+		MEM_RESERVE | MEM_PHYSICAL, PAGE_READWRITE);
 	if (lpvMemoryWindowTwo == NULL)
 	{
 		_tprintf(_T("Failed to allocate second window\n"));
@@ -190,8 +210,13 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
-	WriteData(lpvMemoryWindowOne, ulRequestedMemory);
+	_tprintf(_T("Window One Address: 0x%X\n", lpvMemoryWindowOne));
+	_tprintf(_T("Windows Two Address: 0x%X\n", lpvMemoryWindowTwo));
 
+	_tprintf(_T("Created Windows, Press any key to cont...\n"));
+	getchar();
+
+	
 	// Map the physical pages for this window region
 	if (!MapUserPhysicalPages(lpvMemoryWindowOne, ulNumPages, ulPfnArray))
 	{
@@ -201,7 +226,27 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
-	// This should fail according to docs
+	_tprintf(_T("Writing Data to VA\n"));
+	if (!WriteData(lpvMemoryWindowOne, ulRequestedMemory))
+	{
+		PrintError("Write Error:", GetLastError());
+	}
+
+	_tprintf(_T("Printing Data\n"));
+	PrintData(lpvMemoryWindowOne, ulRequestedMemory);
+
+	//Unmap the first Window
+	_tprintf(_T("Umap first Window\n"));
+	if (!MapUserPhysicalPages(lpvMemoryWindowOne, ulNumOriginalPages, NULL))
+	{
+		PrintError("Error Unmapping:", GetLastError());
+		getchar();
+		goto done;
+	}
+
+	
+	// Now map the physical pages to the new window
+	_tprintf(_T("Mapping second window\n"));
 	if (!MapUserPhysicalPages(lpvMemoryWindowTwo, ulNumPages, ulPfnArray))
 	{
 		PrintError("Error", GetLastError());
@@ -210,6 +255,8 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
+	_tprintf(_T("print second window\n"));
+	PrintData(lpvMemoryWindowTwo, ulRequestedMemory);
 
 done:
 	if (lpvMemoryWindowTwo)
