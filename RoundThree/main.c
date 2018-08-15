@@ -3,6 +3,7 @@
 #include <tchar.h>
 #include <string.h>
 #include <stdio.h>
+#include <Psapi.h>
 
 
 void PrintError(const char *szMsg, DWORD ddMsgId)
@@ -210,8 +211,8 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
-	_tprintf(_T("Window One Address: 0x%X\n", lpvMemoryWindowOne));
-	_tprintf(_T("Windows Two Address: 0x%X\n", lpvMemoryWindowTwo));
+	_tprintf(_T("Window One Address: 0x%X\n"), lpvMemoryWindowOne);
+	_tprintf(_T("Windows Two Address: 0x%X\n"), lpvMemoryWindowTwo);
 
 	_tprintf(_T("Created Windows, Press any key to cont...\n"));
 	getchar();
@@ -244,7 +245,9 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
-	
+	// Emptying the working set
+	EmptyWorkingSet(GetCurrentProcess());
+
 	// Now map the physical pages to the new window
 	_tprintf(_T("Mapping second window\n"));
 	if (!MapUserPhysicalPages(lpvMemoryWindowTwo, ulNumPages, ulPfnArray))
